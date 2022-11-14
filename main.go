@@ -188,7 +188,10 @@ func updateSpring(ctx context.Context, keyPair *KeyPair, springURL string, entry
 	}
 
 	logger.Infof("Successfully published entry %q with timestamp %v (resp body: %q)",
-		entry.Title, entry.Published, string(respBody))
+		entry.Title,
+		entry.Published,
+		string(respBody),
+	)
 
 	return err
 }
