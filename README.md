@@ -1,4 +1,4 @@
-# sequences-bridge
+# neospring-bridge
 
 Configure by copying `.envrc.sample` and adding appropriate keys to it:
 
