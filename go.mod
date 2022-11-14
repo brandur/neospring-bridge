@@ -1,4 +1,4 @@
-module github.com/brandur/sequences-bridge
+module github.com/brandur/neospring-bridge
 
 go 1.19
 

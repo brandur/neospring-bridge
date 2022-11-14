@@ -15,6 +15,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
+
+	"github.com/brandur/neospring-bridge/internal/util/stringutil"
 )
 
 // From spec: <time datetime="YYYY-MM-DDTHH:MM:SSZ">.
@@ -42,11 +44,11 @@ func abortErr(err error) {
 func fetchFeed(ctx context.Context, url string) (*Feed, error) {
 	data, err := requestWithRetries(ctx, http.MethodGet, url, nil, nil)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("error getting feed: %w", err)
 	}
 
 	var feed Feed
-	if xml.Unmarshal(data, &feed); err != nil {
+	if err := xml.Unmarshal(data, &feed); err != nil {
 		return nil, xerrors.Errorf("error unmarshaling XML feed: %w", err)
 	}
 
@@ -76,20 +78,18 @@ func requestWithRetries(ctx context.Context, method, url string, headers http.He
 			return nil, xerrors.Errorf("error creating new request: %w", err)
 		}
 
+		for key, vals := range headers {
+			for _, val := range vals {
+				r.Header.Add(key, val)
+			}
+		}
+
+		logger.Infof("Request: %s %v (attempt: %d)", method, url, requestNum-1)
+
 		resp, err := http.DefaultClient.Do(r)
 		if err != nil {
 			outerErr = xerrors.Errorf("error making request: %w", err)
 			continue
-		}
-
-		// Conflict is returned by a Spring '83 implementation in cases where a
-		// newer version of a board has already been posted, so if we encounter
-		// this, consider it a success and stop retrying.
-		if resp.StatusCode >= 300 && resp.StatusCode != http.StatusConflict {
-			if shouldRetryStatusCode(resp.StatusCode) {
-				outerErr = xerrors.Errorf("bad status code during request: %d", resp.StatusCode)
-				continue
-			}
 		}
 
 		defer resp.Body.Close()
@@ -98,6 +98,21 @@ func requestWithRetries(ctx context.Context, method, url string, headers http.He
 		if err != nil {
 			outerErr = xerrors.Errorf("error reading response body: %w", err)
 			continue
+		}
+
+		logger.Infof("Response: %s (body: %q)", resp.Status, stringutil.SampleLong(string(respBody)))
+
+		// Conflict is returned by a Spring '83 implementation in cases where a
+		// newer version of a board has already been posted, so if we encounter
+		// this, consider it a success and stop retrying.
+		if resp.StatusCode >= 300 && resp.StatusCode != http.StatusConflict {
+			err := xerrors.Errorf("bad status code during request: %d", resp.StatusCode)
+			if shouldRetryStatusCode(resp.StatusCode) {
+				outerErr = err
+				continue
+			}
+
+			return nil, err
 		}
 
 		return respBody, nil
@@ -158,15 +173,22 @@ func shouldRetryStatusCode(statusCode int) bool {
 	return false
 }
 
-func updateSpring(ctx context.Context, keyPair *KeyPair, url string, entry *Entry) error {
+func updateSpring(ctx context.Context, keyPair *KeyPair, springURL string, entry *Entry) error {
 	content := fmt.Sprintf(`<time datetime="%s">\n\n%s\n\n%s`,
 		entry.Published.Format(timestampFormat),
 		entry.Title,
 		entry.Content.Content,
 	)
 
-	_, err := requestWithRetries(ctx, http.MethodPut, url, http.Header{
+	respBody, err := requestWithRetries(ctx, http.MethodPut, springURL+"/"+keyPair.PublicKey, http.Header{
 		"Spring-Signature": []string{keyPair.SignHex([]byte(content))},
 	}, []byte(content))
+	if err != nil {
+		return xerrors.Errorf("error updating board: %w", err)
+	}
+
+	logger.Infof("Successfully published entry %q with timestamp %v (resp body: %q)",
+		entry.Title, entry.Published, string(respBody))
+
 	return err
 }

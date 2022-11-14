@@ -8,4 +8,4 @@ Configure by copying `.envrc.sample` and adding appropriate keys to it:
 
 Build and run:
 
-    go build . && ./sequences-bridge
+    go build . && ./neospring-bridge
