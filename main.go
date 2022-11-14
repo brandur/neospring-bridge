@@ -174,7 +174,7 @@ func shouldRetryStatusCode(statusCode int) bool {
 }
 
 func updateSpring(ctx context.Context, keyPair *KeyPair, springURL string, entry *Entry) error {
-	content := fmt.Sprintf(`<time datetime="%s">\n\n%s\n\n%s`,
+	content := fmt.Sprintf(`<time datetime="%s">\n\n<h1>%s</h1>\n\n%s`,
 		entry.Published.Format(timestampFormat),
 		entry.Title,
 		entry.Content.Content,
