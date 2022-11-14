@@ -1,0 +1,76 @@
+name: neospring-bridge CI
+
+env:
+  GO_VERSION: 1.19
+
+on:
+  pull_request:
+  push:
+  schedule:
+    # Once every 3 hours.
+    - cron: "0 */3 * * *"
+
+
+jobs:
+  golangci-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: "Check: golangci-lint"
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.49
+
+  run:
+    if: github.ref == 'refs/heads/master'
+    needs:
+      - golangci-lint
+      - tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v3
+
+      - name: "Go: Download modules"
+        run: go mod download
+
+      - name: "Go: Build"
+        run: go build
+
+      - name: Run
+        run: ./neospring-bridge
+        env:
+          ATOM_FEED_URL: https://brandur.org/sequences.atom
+          # SPRING_PRIVATE_KEY is a repo secret
+          SPRING_PUBLIC_KEY: 2c98169d0b6fa73cab5a830be8dde53c5f388d5c6f8e6f756b6b6dbcc83e1124
+          SPRING_URL: https://neospring.brandur.org
+
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: "Go: Download modules"
+        run: go mod download
+
+      - name: "Go: Test"
+        run: go test ./... -race
+
