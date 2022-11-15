@@ -72,6 +72,9 @@ func fetchFeed(ctx context.Context, url string) (*Feed, error) {
 	return &feed, nil
 }
 
+// Photos are large and boards are expected to be displayed in small spaces, so
+// don't bother with the additional srcset information. It eats up quite a few
+// characters.
 var srcSetRE = regexp.MustCompile(` srcset=".*?"`)
 
 func minimizeContent(content string) string {
@@ -208,6 +211,11 @@ func updateSpring(ctx context.Context, keyPair *KeyPair, springURL string, entry
 
 	content = canonicalizeURLs(content)
 	content = minimizeContent(content)
+
+	logger.Infof("Raw content is %d bytes; %d bytes after layout, canonicalization, and minification",
+		len([]byte(entry.Content.Content)),
+		len([]byte(content)),
+	)
 
 	respBody, err := requestWithRetries(ctx, http.MethodPut, springURL+"/"+keyPair.PublicKey, http.Header{
 		"Spring-Signature": []string{keyPair.SignHex([]byte(content))},
