@@ -5,10 +5,13 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
+	"html"
 	"io"
 	"math"
 	"net/http"
 	"os"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v6"
@@ -41,6 +44,20 @@ func abortErr(err error) {
 	abort("error: %v", err)
 }
 
+// Should end with a slash.
+const canonicalURL = "https://brandur.org/"
+
+var (
+	aHrefRE  = regexp.MustCompile(`<a href="/`)
+	imgSrcRE = regexp.MustCompile(`<img src="/`)
+)
+
+func canonicalizeURLs(content string) string {
+	content = aHrefRE.ReplaceAllString(content, `<a href="`+canonicalURL)
+	content = imgSrcRE.ReplaceAllString(content, `<img src="`+canonicalURL)
+	return content
+}
+
 func fetchFeed(ctx context.Context, url string) (*Feed, error) {
 	data, err := requestWithRetries(ctx, http.MethodGet, url, nil, nil)
 	if err != nil {
@@ -53,6 +70,15 @@ func fetchFeed(ctx context.Context, url string) (*Feed, error) {
 	}
 
 	return &feed, nil
+}
+
+var srcSetRE = regexp.MustCompile(` srcset=".*?"`)
+
+func minimizeContent(content string) string {
+	content = html.UnescapeString(content)
+	content = srcSetRE.ReplaceAllString(content, "")
+	content = strings.TrimSpace(content)
+	return content
 }
 
 func requestWithRetries(ctx context.Context, method, url string, headers http.Header, body []byte) ([]byte, error) {
@@ -179,6 +205,9 @@ func updateSpring(ctx context.Context, keyPair *KeyPair, springURL string, entry
 		entry.Title,
 		entry.Content.Content,
 	)
+
+	content = canonicalizeURLs(content)
+	content = minimizeContent(content)
 
 	respBody, err := requestWithRetries(ctx, http.MethodPut, springURL+"/"+keyPair.PublicKey, http.Header{
 		"Spring-Signature": []string{keyPair.SignHex([]byte(content))},
