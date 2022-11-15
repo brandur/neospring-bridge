@@ -72,14 +72,19 @@ func fetchFeed(ctx context.Context, url string) (*Feed, error) {
 	return &feed, nil
 }
 
-// Photos are large and boards are expected to be displayed in small spaces, so
-// don't bother with the additional srcset information. It eats up quite a few
-// characters.
-var srcSetRE = regexp.MustCompile(` srcset=".*?"`)
+var (
+	// Photos are large and boards are expected to be displayed in small spaces, so
+	// don't bother with the additional srcset information. It eats up quite a few
+	// characters.
+	srcSetRE = regexp.MustCompile(` srcset=".*?"`)
+
+	twoPlusNewlinesRE = regexp.MustCompile(`\n{3,}`)
+)
 
 func minimizeContent(content string) string {
 	content = html.UnescapeString(content)
 	content = srcSetRE.ReplaceAllString(content, "")
+	content = twoPlusNewlinesRE.ReplaceAllString(content, "\n\n")
 	content = strings.TrimSpace(content)
 	return content
 }
