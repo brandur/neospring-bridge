@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -13,6 +14,12 @@ func TestCanonicalURLs(t *testing.T) {
 
 func TestMinimizeContent(t *testing.T) {
 	require.Equal(t, sampleContentMinimized, minimizeContent(sampleContent))
+}
+
+func TestRenderLayout(t *testing.T) {
+	// Just a very basic check that things work without erroring
+	_, err := renderLayout("a title", "some content", time.Now())
+	require.NoError(t, err)
 }
 
 func TestShouldRetryStatusCode(t *testing.T) {

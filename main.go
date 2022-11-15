@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/xml"
 	"fmt"
 	"html"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/caarlos0/env/v6"
@@ -87,6 +89,28 @@ func minimizeContent(content string) string {
 	content = twoPlusNewlinesRE.ReplaceAllString(content, "\n\n")
 	content = strings.TrimSpace(content)
 	return content
+}
+
+//go:embed layout.tmpl.html
+var layout string
+
+func renderLayout(title, content string, timestamp time.Time) ([]byte, error) {
+	tmpl, err := template.New("layout").Parse(layout)
+	if err != nil {
+		return nil, xerrors.Errorf("error parsing template: %w", err)
+	}
+
+	var buf bytes.Buffer
+
+	if err := tmpl.Execute(&buf, map[string]any{
+		"Content":   content,
+		"Timestamp": fmt.Sprintf(`<time datetime="%s">`, timestamp.Format(timestampFormat)),
+		"Title":     title,
+	}); err != nil {
+		return nil, xerrors.Errorf("error executing template: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }
 
 func requestWithRetries(ctx context.Context, method, url string, headers http.Header, body []byte) ([]byte, error) {
@@ -208,23 +232,23 @@ func shouldRetryStatusCode(statusCode int) bool {
 }
 
 func updateSpring(ctx context.Context, keyPair *KeyPair, springURL string, entry *Entry) error {
-	content := fmt.Sprintf(`<time datetime="%s">`+"\n\n"+`<h1>%s</h1>`+"\n\n"+`%s`,
-		entry.Published.Format(timestampFormat),
-		entry.Title,
-		entry.Content.Content,
-	)
-
+	content := entry.Content.Content
 	content = canonicalizeURLs(content)
 	content = minimizeContent(content)
 
+	rendered, err := renderLayout(entry.Title, content, entry.Published)
+	if err != nil {
+		return err
+	}
+
 	logger.Infof("Raw content is %d bytes; %d bytes after layout, canonicalization, and minification",
 		len([]byte(entry.Content.Content)),
-		len([]byte(content)),
+		len(rendered),
 	)
 
 	respBody, err := requestWithRetries(ctx, http.MethodPut, springURL+"/"+keyPair.PublicKey, http.Header{
-		"Spring-Signature": []string{keyPair.SignHex([]byte(content))},
-	}, []byte(content))
+		"Spring-Signature": []string{keyPair.SignHex(rendered)},
+	}, rendered)
 	if err != nil {
 		return xerrors.Errorf("error updating board: %w", err)
 	}
