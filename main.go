@@ -76,7 +76,7 @@ var (
 	// Photos are large and boards are expected to be displayed in small spaces, so
 	// don't bother with the additional srcset information. It eats up quite a few
 	// characters.
-	srcSetRE = regexp.MustCompile(` srcset=".*?"`)
+	srcSetRE = regexp.MustCompile(`\n? +srcset=".*?"`)
 
 	twoPlusNewlinesRE = regexp.MustCompile(`\n{3,}`)
 )
