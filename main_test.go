@@ -18,7 +18,7 @@ func TestMinimizeContent(t *testing.T) {
 
 func TestRenderLayout(t *testing.T) {
 	// Just a very basic check that things work without erroring
-	_, err := renderLayout("a title", "some content", time.Now())
+	_, err := renderLayout("sequences.tmpl.html", "a title", "some content", time.Now())
 	require.NoError(t, err)
 }
 

@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
-	_ "embed"
+	"embed"
 	"encoding/xml"
 	"fmt"
 	"html"
@@ -92,11 +92,19 @@ func minimizeContent(content string) string {
 	return content
 }
 
-//go:embed layout.tmpl.html
-var layout string
+//go:embed layouts/*.tmpl.html
+var layoutsFS embed.FS
 
-func renderLayout(title, content string, timestamp time.Time) (string, error) {
-	tmpl, err := template.New("layout").Parse(layout)
+// Renders the given title, content, and timestamp with the indicated layout,
+// which should be a file in the `layouts/` directory (with extension but
+// without `layouts/` prefix).
+func renderLayout(layout, title, content string, timestamp time.Time) (string, error) {
+	layoutData, err := layoutsFS.ReadFile("layouts/" + layout)
+	if err != nil {
+		return "", xerrors.Errorf("error reading layout %q: %w", layout, err)
+	}
+
+	tmpl, err := template.New(layout).Parse(string(layoutData))
 	if err != nil {
 		return "", xerrors.Errorf("error parsing template: %w", err)
 	}
@@ -233,7 +241,7 @@ func shouldRetryStatusCode(statusCode int) bool {
 }
 
 func updateSpring(ctx context.Context, keyPair *KeyPair, springURL string, entry *Entry) error {
-	rendered, err := renderLayout(entry.Title, entry.Content.Content, entry.Published)
+	rendered, err := renderLayout("sequences.tmpl.html", entry.Title, entry.Content.Content, entry.Published)
 	if err != nil {
 		return err
 	}
