@@ -13,12 +13,14 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"text/template"
 	"time"
 
 	"github.com/caarlos0/env/v6"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"github.com/brandur/neospring-bridge/internal/util/stringutil"
@@ -188,7 +190,7 @@ func requestWithRetries(ctx context.Context, method, url string, headers http.He
 
 func run(ctx context.Context) error {
 	type Config struct {
-		AtomFeedURL      string `env:"ATOM_FEED_URL,required"`
+		AtomFeedURL      string `env:"ATOM_FEED_URL,required"` // supports multiple comma-separate URLs
 		SpringPrivateKey string `env:"SPRING_PRIVATE_KEY,required"`
 		SpringPublicKey  string `env:"SPRING_PUBLIC_KEY,required"`
 		SpringURL        string `env:"SPRING_URL,required"`
@@ -210,19 +212,46 @@ func run(ctx context.Context) error {
 		return xerrors.Errorf("SPRING_PUBLIC_KEY doesn't match the public key portion of SPRING_PRIVATE_KEY")
 	}
 
-	feed, err := fetchFeed(ctx, config.AtomFeedURL)
-	if err != nil {
-		return err
+	var entries []*Entry
+	var entriesMut sync.Mutex
+
+	// Nested so the errgroup's context isn't retained (it's cancelled after
+	// use).
+	{
+		errGroup, ctx := errgroup.WithContext(ctx)
+		errGroup.SetLimit(10)
+
+		feedURLs := strings.Split(config.AtomFeedURL, ",")
+		for i := range feedURLs {
+			feedURL := feedURLs[i]
+
+			errGroup.Go(func() error {
+				feed, err := fetchFeed(ctx, feedURL)
+				if err != nil {
+					return err
+				}
+
+				if len(feed.Entries) < 1 {
+					logger.Infof("No entries in feed; taking no action")
+					return nil
+				}
+
+				entriesMut.Lock()
+				entries = append(entries, feed.Entries...)
+				entriesMut.Unlock()
+
+				return nil
+			})
+		}
+
+		if err := errGroup.Wait(); err != nil {
+			return xerrors.Errorf("error fetching feeds: %w", err)
+		}
 	}
 
-	if len(feed.Entries) < 1 {
-		logger.Infof("No entries in feed; taking no action")
-		return nil
-	}
+	slices.SortFunc(entries, sortEntriesDesc)
 
-	slices.SortFunc(feed.Entries, sortEntriesDesc)
-
-	if err := updateSpring(ctx, keyPair, config.SpringURL, feed.Entries[0]); err != nil {
+	if err := updateSpring(ctx, keyPair, config.SpringURL, entries[0]); err != nil {
 		return err
 	}
 

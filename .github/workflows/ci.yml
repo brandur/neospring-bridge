@@ -56,7 +56,7 @@ jobs:
       - name: Run
         run: ./neospring-bridge
         env:
-          ATOM_FEED_URL: https://brandur.org/sequences.atom
+          ATOM_FEED_URL: "https://brandur.org/atoms.atom,https://brandur.org/sequences.atom"
           SPRING_PRIVATE_KEY: ${{ secrets.SPRING_PRIVATE_KEY }}
           SPRING_PUBLIC_KEY: 2c98169d0b6fa73cab5a830be8dde53c5f388d5c6f8e6f756b6b6dbcc83e1124
           SPRING_URL: https://neospring.brandur.org

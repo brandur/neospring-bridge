@@ -1,4 +1,4 @@
-export ATOM_FEED_URL="https://brandur.org/sequences.atom"
+export ATOM_FEED_URL="https://brandur.org/atoms.atom,https://brandur.org/sequences.atom"
 export SPRING_PRIVATE_KEY=
 export SPRING_PUBLIC_KEY=
 export SPRING_URL="https://neospring.brandur.org"
