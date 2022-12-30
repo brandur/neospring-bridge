@@ -52,13 +52,15 @@ func abortErr(err error) {
 const canonicalURL = "https://brandur.org/"
 
 var (
-	aHrefRE  = regexp.MustCompile(`<a href="/`)
-	imgSrcRE = regexp.MustCompile(`<img src="/`)
+	aHrefRE     = regexp.MustCompile(`<a href="/`)
+	imgSrcRE    = regexp.MustCompile(`<img src="/`)
+	sourceSrcRE = regexp.MustCompile(`<source src="/`) // in <video> tag
 )
 
 func canonicalizeURLs(content string) string {
 	content = aHrefRE.ReplaceAllString(content, `<a href="`+canonicalURL)
 	content = imgSrcRE.ReplaceAllString(content, `<img src="`+canonicalURL)
+	content = sourceSrcRE.ReplaceAllString(content, `<source src="`+canonicalURL)
 	return content
 }
 
